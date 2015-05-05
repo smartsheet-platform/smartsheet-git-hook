@@ -55,7 +55,7 @@ The bug tracking sheet if using the script as-is, assumes the following columns 
 | **Resolution** | A Dropdown List with valid values: `Fixed`, `Cannot Repro`, `Not a Bug`, `Won't Fix`, and `Duplicate` | Updated by script |
 | **Fix in Branch** | A Dropdown List containing valid branches | Updated by script |
 | **Fixed By** | A Contact List that minimally contains potential committers | Updated by script |
-| **Target Release** | A Dropdown list containing valid releases  for the form **xx - nnnn**, where xx is a number and nnnn is a name | Conditionally updated by script |
+| **Target Release** | A Dropdown list containing valid releases of the form **xx - nnnn**, where xx is a number and nnnn is a name | Conditionally updated by script |
 | **Comments** | A column that allows Text/Number values | Updated by script |
 
 Alternatively, the more specific Dropdown list and Contact List columns can be relaxed to simply allow Text/Number values or be set up with alternate valid values.
