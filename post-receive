@@ -1,0 +1,204 @@
+#!/usr/bin/env python
+##
+#
+# This script expects to be deployed as post-receive in the hooks directory of a bare git repository
+# directory with an accomanying file named post-receive.cfg with the following lines filled out:
+# {
+#   "sheetId" : "<gridId of bug tracker sheet>",
+#   "prefix" : "Bug-",
+#   "token" : "<smartsheet token>",
+#   "git" : "/usr/local/git/bin/git",
+#   "url" : "<optional url to repo browser>"
+# }
+#
+# if the post-receive.cfg file does not exist, this script 
+#
+##
+
+import commands
+import httplib
+import json
+import os
+import re
+import subprocess
+import sys
+
+## functions
+
+## reads the contents of the specified json config file
+def readConfig(cfg):
+   try:
+      fr = open(cfg, "r")
+      str = fr.read();
+      dict = json.loads(str)
+      fr.close()
+   except IOError:
+      print "Warning: unable to read post-receive.cfg"
+      return None
+
+   ## all but url are required
+   if set(('token', 'sheetId', 'prefix', 'git')) <= set(dict):
+      if not ('url' in dict.keys()):
+         dict['url'] = None
+   else:
+      print "Warning: post-receive hook not properly configured"
+      return None
+
+   return dict
+
+## invokes smartsheet API to get the column id/title mapping for the configured sheet
+def readColumnMap(token, sheetId):
+   headers = {'Authorization': "Bearer " + token}
+   httpconnection = httplib.HTTPSConnection("api.smartsheet.com")
+
+   httpconnection.request("GET", "/1.1/sheet/" + sheetId + "/columns", headers=headers)
+   response = httpconnection.getresponse()
+   columns = json.loads(response.read())
+   httpconnection.close();
+
+   dict = {}
+   for col in columns:
+      dict[col['id']] = col['title']
+      dict[col['title']] = col['id']
+
+   return dict
+
+## returns True if cell
+def isTheBugRow(row, bug, columns):
+   for cell in row['cells']:
+      if (columns['ID'] == cell['columnId']) and (cell['value'] == bug):
+         return True
+   return False
+
+## finds the smartsheet row associated with the specified bugid
+def readRow(token, sheetId, columns, bugid, prefix):
+   headers = {'Authorization': "Bearer " + token}
+   httpconnection = httplib.HTTPSConnection("api.smartsheet.com")
+
+   bug = prefix + bugid
+
+   httpconnection.request("GET", "/1.1/search/sheet/" + sheetId + "?query=" + bug, headers=headers)
+   response = httpconnection.getresponse()
+   obj = json.loads(response.read())
+
+   for item in obj['results']:
+      if (item['objectType'] == "row"):
+         httpconnection.request("GET", "/1.1/sheet/" + sheetId + "/row/" + str(item['objectId']), headers=headers)
+         response = httpconnection.getresponse()
+         irow = json.loads(response.read())
+         if isTheBugRow(irow, bug, columns):
+            httpconnection.close();
+            return irow
+
+   httpconnection.close();
+   return {'cells':[]}
+
+## produces the json body for updating the bug tracker row
+def rowUpdate(row, columns, msg, fixby, branch):
+   list = []
+   list.append({'columnId':columns['Status'], 'value':"Resolved"})
+   list.append({'columnId':columns['Resolution'], 'value':"Fixed"})
+   list.append({'columnId':columns['Fix in Branch'], 'value':branch, 'strict':"false"})
+
+   # compute target release if branch matches release-nn-xxxx
+   if (branch.startswith("release-")):
+      parts=branch.split("-")
+      if (len(parts) == 3):
+        target=parts[1] + " - " + parts[2].title()
+        list.append({'columnId':columns['Target Release'], 'value':target})
+
+   list.append({'columnId':columns['Fixed By'], 'value':fixby})
+
+   comments = {'columnId':columns['Comments'], 'value':msg}
+   open = False;
+
+   cells = row['cells']
+   for cell in cells:
+      if (columns[cell['columnId']] == "Comments"):
+         comments = {'columnId':cell['columnId'], 'value':cell['value'] + "\n\n" + msg}
+      elif ((columns[cell['columnId']] == "Status") and (cell['value'] == "Open")):
+         open = True;
+
+   list.append(comments)
+
+   # only update cells if status is Open
+   update = {'cells': []}
+   if open:
+      update['cells'] = list
+
+   return update
+
+## invokes the smartsheet API to perform the row update in the bug tracker sheet
+def putUpdate(token, sheetId, rowId, update):
+   headers = {'Authorization':"Bearer " + token, 'Content-Type':"application/json"}
+   httpconnection = httplib.HTTPSConnection("api.smartsheet.com")
+
+   httpconnection.request("PUT", "/1.1/sheet/" + sheetId + "/row/" + rowId, body=update, headers=headers)
+   response = httpconnection.getresponse()
+   rval = json.loads(response.read())
+   httpconnection.close();
+   return rval
+
+## workflow function that reads configuraton, column mapping, and performs row update in the bug tracker sheet
+def update(bugid, ref, fixby, name, branch, config):
+   if config:
+      token = config['token']
+      sheetId = config['sheetId']
+      prefix = config['prefix']
+      columns = readColumnMap(token, sheetId)
+      row = readRow(token, sheetId, columns, bugid, prefix)
+      if 'id' in row.keys():
+         msg = "Fixed in commit: " + ref + " by: " + name 
+         if 'url' in config.keys() and config['url']:
+            msg = msg + "\n" + config['url'] + "/commit/" + ref
+         update = rowUpdate(row, columns, msg, fixby, branch)
+         return putUpdate(token, sheetId, str(row['id']), json.dumps(update))
+   return None
+
+## validates the args passed via stdin and converted to an array
+def validate(dir, args, config):
+   if len(args) == 3:
+      ## args are: git directory, reference, branch path
+      commit(dir, args[1], args[2].split('/')[-1], config)
+   return
+
+## invokes git log command to get details of commit and then performs the update workflow if a bug was referenced as fixed
+def commit(dir, ref, branch, config):
+   process = subprocess.Popen(config['git'] + ' log --pretty="%H|%cn|%ce|%cd|%s" -1 ' + ref, cwd = os.path.dirname(dir), shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE )
+   (out, err) = process.communicate()
+
+   error = str(err)
+   output = str(out)
+
+   gitstats = output.split('|')
+
+   if len(gitstats) >= 5:
+      ref = gitstats[0]
+      cn = gitstats[1]
+      ce = gitstats[2]
+      cd = gitstats[3]
+      s = '|'.join(gitstats[4:])
+
+      match = re.search("[fF][iI][xX](es)? [bB][uU][gG]-[0-9]+", s)
+      if (match):
+         parts=match.group().split("-")
+         if (len(parts) == 2):
+            bugid=parts[1]
+            prefix = config['prefix']
+            result = update(bugid, ref, ce, cn, branch, config)
+            if (result and result['resultCode'] == 0):
+               print prefix + bugid + " updated in Bug Tracker"
+   return
+
+## start of script
+stdin = sys.stdin
+dir = os.getenv("GIT_DIR", ".")
+
+if dir == ".":
+   dir = os.getcwd() + "/"
+
+config = readConfig("hooks/post-receive.cfg")
+if config:
+   for line in stdin:
+      validate(dir, line.split(), config)
+## end of script
