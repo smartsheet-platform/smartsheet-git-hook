@@ -14,10 +14,10 @@ Upon such a match, the script updates the matched row with the following changes
 - **Fix in Branch** column set to the git branch as deteremined by the stdin stream sent to the script.
 - **Fixed By** column set to the email address of committer.
 - **Target Release** column set to **xx - yyyyy** if the git branch is named **release-xx-yyyyy**, otherwise, left unchanged
-- **Comments** column is set or appended with **Fixed in commit *zzzz* by *nnnn*** where *zzzz* is the commit reference and *nnnn* is the committer's name. 
+- **Comments** column is set or appended with **Fixed in commit zzzz by nnnn** where *zzzz* is the commit reference and *nnnn* is the committer's name. 
 - If the optional **url** configuration attribute is set to something like https://my.git.lab.host/group-name/project-name (assuming GitLab), it also appends a line containing a link to the code diff https://my.git.lab.host/group-name/project-name/commit/zzzz When appending, the added lines are preceeded by two newlines.
 
-For each successful update, the script outputs a message of the form: **Bug-*bbbb* updated in Bug Tracker** where *bbbb* is the bug number.
+For each successful update, the script outputs a message of the form: **Bug-bbbb updated in Bug Tracker** where *bbbb* is the bug number.
 
 ## Configuration
 The configuration file is a json file that contains the following:
@@ -58,7 +58,7 @@ The script assumes the existence of the following columns in the bug tracking sh
 | **Resolution** | A Dropdown List with valid values: `Fixed`, `Cannot Repro`, `Not a Bug`, `Won't Fix`, and `Duplicate` | Updated by script |
 | **Fix in Branch** | A Dropdown List containing valid branches | Updated by script |
 | **Fixed By** | A Contact List that minimally contains potential committers | Updated by script |
-| **Target Release** | A Dropdown list containing valid releases of the form ***xx* - *nnnn***, where *xx* is a number and *nnnn* is a name | Conditionally updated by script |
+| **Target Release** | A Dropdown list containing valid releases of the form **xx - nnnn**, where *xx* is a number and *nnnn* is a name | Conditionally updated by script |
 | **Comments** | A column that allows Text/Number values | Updated by script |
 
 Alternatively, the more specific Dropdown list and Contact List columns can be relaxed to simply allow Text/Number values or be set up with alternate valid values.
