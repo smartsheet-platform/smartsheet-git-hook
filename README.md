@@ -67,7 +67,7 @@ Any number of additional columns are allowed.
 
 #License
 
-Copyright 2015 [Smartsheet, Inc.](www.smartsheet.com)
+Copyright 2015 [Smartsheet, Inc.](https://www.smartsheet.com)
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
 
