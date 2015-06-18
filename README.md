@@ -34,7 +34,7 @@ The configuration file is a json file that contains the following:
 
 The **sheetId** attribute is the identifier for the Smartsheet containing bug tracking information discoverable as the **Sheet ID** attribute when inspecting Sheet Properties.
 
-The **prefix** attribute is the configured to match the prefix in the Display Format of the bug tracking sheet whose column type is set to **Auto-Number/System** and the system-generated column is set to **Auto-Number**.
+The **prefix** attribute is configured to match the prefix in the Display Format of the bug tracking sheet whose column type is set to **Auto-Number/System** and the system-generated column is set to **Auto-Number**.
 
 The **token** attribute is the Smartsheet REST API access token generated in the Personal Settings dialog box of the user under which the script will run.
 
