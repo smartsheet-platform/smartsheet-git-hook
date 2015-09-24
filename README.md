@@ -1,5 +1,7 @@
 # smartsheet-git-hook
 
+2015.09.24 Update to use Smartsheet 2.0 API
+
 This project contains a **post-receive** git hook python script that updates a bug tracking sheet in Smartsheet. It detects that a defect has been resolved by inspecting the commit messages that are pushed to a git branch. Please consult [Customizing Git - Git Hooks](http://git-scm.com/book/en/v2/Customizing-Git-Git-Hooks) for more information about Server-Side Hooks.
 
 ## Overview
