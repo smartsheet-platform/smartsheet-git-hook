@@ -158,7 +158,8 @@ def update(bugid, ref, fixby, name, branch, config):
             if 'url' in config.keys() and config['url']:
                 msg = msg + "\n" + config['url'] + "/commit/" + ref
             update = rowUpdate(row, columns, msg, fixby, branch)
-            return putUpdate(token, sheetId, str(row['id']), json.dumps(update))
+            if len(update['cells']) > 0:
+                return putUpdate(token, sheetId, str(row['id']), json.dumps(update))
     return None
 
 ## validates the args passed via stdin and converted to an array
@@ -170,21 +171,22 @@ def validate(dir, args, config):
 
 ## retrieves the references for the range specified
 def commitRefs(dir, refStart, refEnd, branch, config):
-    process = subprocess.Popen(config['git'] + ' rev-list ' + refStart + '..' + refEnd, cwd = os.path.dirname(dir), shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE )
-    (out, err) = process.communicate()
-    output = str(out)
+    output = callGit(dir, config['git'] + ' rev-list ' + refStart + '..' + refEnd)
 
     for line in output.split():
-        commit(dir, line, branch, config)
+        ## check to see if the commit reference exists only once (first commit) to avoid attempting to update during a merge
+        if commitOccurances(dir, line, config) == 1:
+            commit(dir, line, branch, config)
     return
+
+## returns the number of occurances the ref id appears in branches
+def commitOccurances(dir, ref, config):
+    output = filter(lambda a: a != '*', callGit(dir, config['git'] + ' branch --contains ' + ref).split())
+    return len(output)
 
 ## invokes git log command to get details of commit and then performs the update workflow if a bug was referenced as fixed
 def commit(dir, ref, branch, config):
-    process = subprocess.Popen(config['git'] + ' log --pretty="%H|%cn|%ce|%cd|%s" -1 ' + ref, cwd = os.path.dirname(dir), shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE )
-    (out, err) = process.communicate()
-
-    error = str(err)
-    output = str(out)
+    output = callGit(dir, config['git'] + ' log --pretty="%H|%cn|%ce|%cd|%s" -1 ' + ref)
 
     gitstats = output.split('|')
 
@@ -205,6 +207,12 @@ def commit(dir, ref, branch, config):
                 if (result and result['resultCode'] == 0):
                     print prefix + bugid + " updated in Bug Tracker"
     return
+
+## spawn process to call git and returns output
+def callGit(dir, cmd):
+    process = subprocess.Popen(cmd, cwd = os.path.dirname(dir), shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE )
+    (out, err) = process.communicate()
+    return str(out)
 
 ## start of script
 stdin = sys.stdin
