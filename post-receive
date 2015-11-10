@@ -164,8 +164,18 @@ def update(bugid, ref, fixby, name, branch, config):
 ## validates the args passed via stdin and converted to an array
 def validate(dir, args, config):
     if len(args) == 3:
-        ## args are: git directory, reference, branch path
-        commit(dir, args[1], args[2].split('/')[-1], config)
+        ## three args expected are: reference start, reference end, branch path
+        commitRefs(dir, args[0], args[1], args[2].split('/')[-1], config)
+    return
+
+## retrieves the references for the range specified
+def commitRefs(dir, refStart, refEnd, branch, config):
+    process = subprocess.Popen(config['git'] + ' rev-list ' + refStart + '..' + refEnd, cwd = os.path.dirname(dir), shell = True, stdout = subprocess.PIPE, stderr = subprocess.PIPE )
+    (out, err) = process.communicate()
+    output = str(out)
+
+    for line in output.split():
+        commit(dir, line, branch, config)
     return
 
 ## invokes git log command to get details of commit and then performs the update workflow if a bug was referenced as fixed
@@ -203,7 +213,7 @@ dir = os.getenv("GIT_DIR", ".")
 if dir == ".":
     dir = os.getcwd() + "/"
 
-## the hook location for where you place this script and configuration 
+## the hook location for where you place this script and configuration
 ## may be different for your git repo
 config = readConfig("custom_hooks/post-receive.cfg")
 if config:
